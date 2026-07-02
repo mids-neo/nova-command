@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Nova Command — mini RTS</title>
 <style>
-  html,body{margin:0;padding:0;overflow:hidden;background:#05070d;font-family:"Menlo","Consolas",monospace;user-select:none;-webkit-user-select:none}
+  html,body{margin:0;padding:0;overflow:hidden;background:#05070d;font-family:"Menlo","Consolas",monospace;user-select:none;-webkit-user-select:none;overscroll-behavior:none;-webkit-text-size-adjust:100%}
   #game{display:block;cursor:crosshair;touch-action:none}
-  #bar{position:fixed;left:0;right:0;bottom:0;height:96px;background:linear-gradient(#0b1220,#070b14);border-top:1px solid #1c2b45;display:flex;align-items:stretch;color:#cfe3ff;z-index:5}
+  #bar{position:fixed;left:0;right:0;bottom:0;height:96px;padding-bottom:env(safe-area-inset-bottom);background:linear-gradient(#0b1220,#070b14);border-top:1px solid #1c2b45;display:flex;align-items:stretch;color:#cfe3ff;z-index:5}
   .pane{padding:10px 14px;border-right:1px solid #16233a;display:flex;flex-direction:column;justify-content:center;gap:4px}
   #resPane{min-width:150px}
   #minerals{color:#7fd8ff;font-size:20px;font-weight:bold}
@@ -48,6 +48,34 @@
   body.touch #help{display:none}
   body.touch #helpTouch{display:block}
   body.touch #quick{display:flex}
+  #rotateHint{display:none;position:fixed;top:96px;left:50%;transform:translateX(-50%);white-space:nowrap;background:rgba(10,18,32,0.88);border:1px solid #2b4a7f;color:#9fb6d9;padding:6px 12px;border-radius:6px;font-size:11px;z-index:15;pointer-events:none;animation:rotfade 8s forwards}
+  @keyframes rotfade{0%,75%{opacity:1}100%{opacity:0;visibility:hidden}}
+  @media (max-width:760px) and (orientation:portrait){ #rotateHint{display:block} }
+  @media (max-width:760px), (max-height:480px){
+    #bar{height:82px}
+    .pane{padding:5px 8px;gap:2px}
+    #resPane{min-width:76px}
+    #minerals{font-size:14px}
+    #counts{font-size:9px}
+    #selPane{min-width:94px;font-size:10px}
+    #selTitle{font-size:11px}
+    #hpline{font-size:9px}
+    #btnPane{gap:4px;padding:3px 6px}
+    .abtn{min-width:78px;padding:4px 6px;font-size:9.5px}
+    .abtn small{font-size:9px}
+    #quick{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;max-width:72vw;gap:6px;right:6px;bottom:calc(88px + env(safe-area-inset-bottom))}
+    .qbtn{padding:8px 9px;font-size:10px}
+    .qsm{min-width:34px;padding:8px 0}
+    #help{display:none}
+    #helpTouch{display:none !important}
+    #msgs{bottom:calc(88px + env(safe-area-inset-bottom));font-size:10px}
+    #msgs div{margin-top:1px}
+    #menuTitle{font-size:26px;letter-spacing:5px}
+    #menuSub{font-size:11px;margin-bottom:16px}
+    .mbtn{min-width:210px;padding:10px 20px;font-size:13px;margin:4px}
+    #overTitle{font-size:34px;letter-spacing:6px}
+    #overSub{font-size:12px;padding:0 16px;text-align:center}
+  }
   #menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(3,5,10,.72);z-index:20;color:#fff}
   #menuTitle{font-size:44px;letter-spacing:10px;color:#7fd8ff;margin-bottom:4px;text-shadow:0 0 24px rgba(90,190,255,.5)}
   #menuSub{color:#5f7aa6;margin-bottom:26px;font-size:13px}
@@ -85,6 +113,7 @@
   <button class="qbtn" id="qMute">&#9835; SOUND</button>
 </div>
 <div id="msgs"></div>
+<div id="rotateHint">&#8635; Landscape is recommended</div>
 <div id="bar">
   <div class="pane" id="resPane"><div id="minerals">&#9670; 0</div><div id="counts"></div></div>
   <div class="pane" id="selPane"><div id="selTitle">Nothing selected</div><div id="hpline"></div></div>
@@ -186,12 +215,15 @@ function buildVignette(){
   rg.addColorStop(1,'rgba(0,0,10,0.42)');
   g.fillStyle=rg; g.fillRect(0,0,VW,VH);
 }
+let BARH=96;
 function resize(){
   const dpr=Math.min(2,window.devicePixelRatio||1);
   VW=innerWidth; VH=innerHeight;
   cv.width=VW*dpr; cv.height=VH*dpr;
   cv.style.width=VW+'px'; cv.style.height=VH+'px';
   cx.setTransform(dpr,0,0,dpr,0,0);
+  const be=document.getElementById('bar');
+  BARH=(be&&be.offsetHeight)||96;
   buildVignette();
 }
 addEventListener('resize',resize); resize();
@@ -381,16 +413,21 @@ function updateFog(){
 // screen shake
 let shake=0;
 function addShake(x,y,mag){
-  const f=Math.max(0,1-Math.hypot(x-(camX+VW/2),y-(camY+(VH-96)/2))/900);
+  const f=Math.max(0,1-Math.hypot(x-(camX+VW/2),y-(camY+viewH()/2))/900);
   shake=Math.min(14,shake+mag*f);
 }
 
 /* ================= helpers ================= */
 const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-const viewH=()=>VH-96;
+const viewH=()=>VH-BARH;
 const radiusOf=e=>e.kind==='unit'?UT[e.type].r:Math.max(e.w,e.h)/2;
-function mmRect(){ const w=190,h=Math.round(w*WORLD.h/WORLD.w); return {x:VW-w-10,y:10,w,h}; }
+function mmRect(){
+  let w=Math.min(190,Math.round(VW*0.26),Math.round(viewH()*0.36*WORLD.w/WORLD.h));
+  w=Math.max(100,w);
+  const h=Math.round(w*WORLD.h/WORLD.w);
+  return {x:VW-w-8,y:8,w,h};
+}
 
 function makeUnit(owner,type,x,y){
   const t=UT[type];
@@ -1596,12 +1633,14 @@ function startSolo(diff){
   menuEl.style.display='none';
   msg('Welcome, Commander. Mine crystals, train an army, destroy the red base.');
   msg('Tip: select your Command Center and press Q to train workers.');
+  if(VW<760)msg('Tap select · drag scroll · tap ground/enemy to move/attack.');
 }
 function startMP(){
   if(started)return;
   started=true;
   menuEl.style.display='none';
   msg('2-player match started. Destroy the enemy Command Center!');
+  if(VW<760)msg('Tap select · drag scroll · tap ground/enemy to move/attack.');
   if(ME===1){
     camX=clamp(WORLD.w-320-VW/2,0,Math.max(0,WORLD.w-VW));
     camY=clamp(WORLD.h/2-viewH()/2,0,Math.max(0,WORLD.h-viewH()));
