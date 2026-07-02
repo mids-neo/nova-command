@@ -2,11 +2,13 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Nova Command — mini RTS</title>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#05070d;font-family:"Menlo","Consolas",monospace;user-select:none;-webkit-user-select:none}
-  #game{display:block;cursor:crosshair}
+  #game{display:block;cursor:crosshair;touch-action:none}
   #bar{position:fixed;left:0;right:0;bottom:0;height:96px;background:linear-gradient(#0b1220,#070b14);border-top:1px solid #1c2b45;display:flex;align-items:stretch;color:#cfe3ff;z-index:5}
   .pane{padding:10px 14px;border-right:1px solid #16233a;display:flex;flex-direction:column;justify-content:center;gap:4px}
   #resPane{min-width:150px}
@@ -16,7 +18,7 @@
   #selTitle{font-size:14px;color:#fff}
   #hpline{font-size:11px;color:#9fb6d9}
   #btnPane{flex:1;display:flex;align-items:center;gap:8px;padding:0 14px;border-right:none}
-  .abtn{background:#122341;border:1px solid #2b4a7f;color:#cfe3ff;padding:9px 12px;font:12px "Menlo","Consolas",monospace;cursor:pointer;border-radius:4px;min-width:118px;text-align:left}
+  .abtn{background:#122341;border:1px solid #2b4a7f;color:#cfe3ff;padding:9px 12px;font:12px "Menlo","Consolas",monospace;cursor:pointer;border-radius:4px;min-width:118px;text-align:left;touch-action:manipulation}
   .abtn:hover{background:#1a3560}
   .abtn small{display:block;color:#7fd8ff;margin-top:2px}
   .abtn.disabled{opacity:.4;cursor:default}
@@ -29,6 +31,19 @@
   #overSub{color:#8fa8cf;margin-bottom:26px;font-size:14px}
   #again{background:#122341;border:1px solid #2b4a7f;color:#cfe3ff;padding:12px 28px;font:14px "Menlo","Consolas",monospace;cursor:pointer;border-radius:4px}
   #again:hover{background:#1a3560}
+  #helpTouch{display:none;position:fixed;top:10px;left:12px;color:#5f7aa6;font-size:11px;line-height:1.7;text-shadow:0 1px 2px #000;z-index:4;pointer-events:none}
+  #helpTouch b{color:#8fb4e8}
+  #quick{position:fixed;right:10px;bottom:106px;display:none;flex-direction:column;gap:8px;z-index:6}
+  .qbtn{background:rgba(18,35,65,0.88);border:1px solid #2b4a7f;color:#cfe3ff;padding:13px 16px;font:13px "Menlo","Consolas",monospace;cursor:pointer;border-radius:6px;touch-action:manipulation}
+  @media (hover:none) and (pointer:coarse){
+    #help{display:none}
+    #helpTouch{display:block}
+    #quick{display:flex}
+    .abtn{min-width:128px;padding:12px 13px;font-size:13px}
+  }
+  body.touch #help{display:none}
+  body.touch #helpTouch{display:block}
+  body.touch #quick{display:flex}
 </style>
 </head>
 <body>
@@ -38,6 +53,16 @@
   <b>LMB</b> select / drag-select &nbsp; <b>RMB</b> move · attack · mine · set rally<br>
   <b>Q</b> train unit &nbsp; <b>B</b> build barracks (worker selected) &nbsp; <b>A</b>+click attack-move<br>
   <b>E</b> select army &nbsp; <b>Space</b> center base &nbsp; <b>Arrows</b> pan &nbsp; <b>H</b> hide help
+</div>
+<div id="helpTouch">
+  <b>NOVA COMMAND</b> — destroy the red Command Center, defend yours<br>
+  <b>Tap</b> a unit/building to select · with units selected, <b>tap</b> ground / enemy / crystals to move · attack · mine<br>
+  <b>Drag</b> to scroll the map · <b>double-tap</b> a unit to select all of its type · tap the minimap to jump<br>
+  Train and build with the buttons in the bottom bar
+</div>
+<div id="quick">
+  <button class="qbtn" id="qArmy">&#8982; ARMY</button>
+  <button class="qbtn" id="qBase">&#8962; BASE</button>
 </div>
 <div id="msgs"></div>
 <div id="bar">
@@ -128,12 +153,14 @@ function nearestEnemyUnit(u,maxD){
   for(const e of units){ if(e.dead||e.owner===u.owner)continue; const d=dist(u,e); if(d<bd){bd=d;best=e;} }
   return best;
 }
-function pickAt(wx,wy){
+function pickAt(wx,wy,slop){
+  slop=slop||5;
+  const pad=slop>5?8:0;
   let best=null,bd=1e9;
-  for(const e of units){ if(e.dead)continue; const d=Math.hypot(e.x-wx,e.y-wy); if(d<UT[e.type].r+5&&d<bd){bd=d;best=e;} }
+  for(const e of units){ if(e.dead)continue; const d=Math.hypot(e.x-wx,e.y-wy); if(d<UT[e.type].r+slop&&d<bd){bd=d;best=e;} }
   if(best)return best;
-  for(const b of buildings){ if(b.dead)continue; if(Math.abs(b.x-wx)<=b.w/2&&Math.abs(b.y-wy)<=b.h/2) return b; }
-  for(const n of nodes){ if(n.dead)continue; if(Math.hypot(n.x-wx,n.y-wy)<n.r+6) return {kind:'node',node:n,x:n.x,y:n.y}; }
+  for(const b of buildings){ if(b.dead)continue; if(Math.abs(b.x-wx)<=b.w/2+pad&&Math.abs(b.y-wy)<=b.h/2+pad) return b; }
+  for(const n of nodes){ if(n.dead)continue; if(Math.hypot(n.x-wx,n.y-wy)<n.r+slop+1) return {kind:'node',node:n,x:n.x,y:n.y}; }
   return null;
 }
 function placementValid(type,x,y){
@@ -503,21 +530,106 @@ addEventListener('keydown',e=>{
   if(k==='q') clickHot('q');
   else if(k==='b'){ if(sel.some(u=>!u.dead&&u.kind==='unit'&&u.type==='worker'&&u.owner===0)) startPlace(); }
   else if(k==='a'){ if(sel.some(u=>!u.dead&&u.kind==='unit'&&u.owner===0)) attackMode=true; }
-  else if(k==='e'){
-    sel=units.filter(u=>u.owner===0&&!u.dead&&u.type==='marine');
-    if(sel.length)beep(520,0.05,'square',0.03);
-  }
+  else if(k==='e') selectArmy();
   else if(k==='h'){ helpEl.style.display=helpEl.style.display==='none'?'block':'none'; }
-  else if(e.key===' '){
-    const cc=buildings.find(b=>b.owner===0&&!b.dead&&b.type==='command');
-    if(cc){
-      camX=clamp(cc.x-VW/2,0,Math.max(0,WORLD.w-VW));
-      camY=clamp(cc.y-viewH()/2,0,Math.max(0,WORLD.h-viewH()));
-    }
-    e.preventDefault();
-  }
+  else if(e.key===' '){ centerBase(); e.preventDefault(); }
 });
 addEventListener('keyup',e=>{ keys[e.key]=false; });
+function selectArmy(){
+  sel=units.filter(u=>u.owner===0&&!u.dead&&u.type==='marine');
+  if(sel.length)beep(520,0.05,'square',0.03);
+}
+function centerBase(){
+  const cc=buildings.find(b=>b.owner===0&&!b.dead&&b.type==='command');
+  if(cc){
+    camX=clamp(cc.x-VW/2,0,Math.max(0,WORLD.w-VW));
+    camY=clamp(cc.y-viewH()/2,0,Math.max(0,WORLD.h-viewH()));
+  }
+}
+
+/* ================= touch controls ================= */
+let tGesture=null, lastTapT=0;
+addEventListener('touchstart',()=>{ document.body.classList.add('touch'); },{once:true,passive:true});
+document.getElementById('qArmy').onclick=selectArmy;
+document.getElementById('qBase').onclick=centerBase;
+
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const a=ac(); if(a&&a.state==='suspended')a.resume();
+  if(gameOver||tGesture)return;
+  const t=e.changedTouches[0];
+  const sx=t.clientX, sy=t.clientY;
+  mouse.x=sx; mouse.y=sy;
+  const w=toWorld(sx,sy); mouse.wx=w.x; mouse.wy=w.y;
+  const mm=mmRect();
+  let mode='pan';
+  if(sx>=mm.x&&sx<=mm.x+mm.w&&sy>=mm.y&&sy<=mm.y+mm.h){ mode='mm'; mmPan(sx,sy); }
+  else if(placing) mode='place';
+  tGesture={id:t.identifier,startX:sx,startY:sy,lastX:sx,lastY:sy,moved:false,mode,t0:performance.now()};
+},{passive:false});
+
+cv.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(!tGesture)return;
+  for(const t of e.changedTouches){
+    if(t.identifier!==tGesture.id)continue;
+    const dx=t.clientX-tGesture.lastX, dy=t.clientY-tGesture.lastY;
+    tGesture.lastX=t.clientX; tGesture.lastY=t.clientY;
+    if(Math.hypot(t.clientX-tGesture.startX,t.clientY-tGesture.startY)>10)tGesture.moved=true;
+    mouse.x=t.clientX; mouse.y=t.clientY;
+    if(tGesture.mode==='mm'){ mmPan(t.clientX,t.clientY); }
+    else if(tGesture.mode==='pan'&&tGesture.moved){
+      camX=clamp(camX-dx,0,Math.max(0,WORLD.w-VW));
+      camY=clamp(camY-dy,0,Math.max(0,WORLD.h-viewH()));
+    }
+    const w=toWorld(t.clientX,t.clientY); mouse.wx=w.x; mouse.wy=w.y;
+  }
+},{passive:false});
+
+cv.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(!tGesture)return;
+  let ended=false;
+  for(const t of e.changedTouches){ if(t.identifier===tGesture.id)ended=true; }
+  if(!ended)return;
+  const g=tGesture; tGesture=null;
+  if(gameOver)return;
+  if(g.mode==='place'){ tryPlace(); return; }
+  if(g.mode==='mm')return;
+  if(!g.moved&&performance.now()-g.t0<600){
+    if(attackMode){
+      const mil=sel.filter(u=>u.kind==='unit'&&!u.dead&&u.owner===0);
+      issueMove(mil,mouse.wx,mouse.wy,true);
+      attackMode=false;
+      fx.push({kind:'ring',x:mouse.wx,y:mouse.wy,life:0.35,max:0.35,r:16,c:'#ff6a6a'});
+      beep(500,0.06,'square',0.03);
+      return;
+    }
+    tapAt(mouse.wx,mouse.wy);
+  }
+},{passive:false});
+cv.addEventListener('touchcancel',()=>{ tGesture=null; },{passive:false});
+
+function tapAt(wx,wy){
+  const p=pickAt(wx,wy,14);
+  const haveOwn=sel.some(e=>!e.dead&&e.owner===0);
+  const haveWorkers=sel.some(e=>!e.dead&&e.owner===0&&e.kind==='unit'&&e.type==='worker');
+  if(p&&p.kind!=='node'&&p.owner===0&&!(p.kind==='building'&&!p.done&&haveWorkers)){
+    const now=performance.now();
+    if(sel.length===1&&sel[0]===p&&now-lastTapT<400&&p.kind==='unit'){
+      sel=units.filter(u=>u.owner===0&&!u.dead&&u.type===p.type&&u.x>camX&&u.x<camX+VW&&u.y>camY&&u.y<camY+viewH());
+    } else sel=[p];
+    lastTapT=now;
+    beep(520,0.04,'square',0.02);
+    return;
+  }
+  if(haveOwn){
+    rightClick(wx,wy);
+    fx.push({kind:'ring',x:wx,y:wy,life:0.35,max:0.35,r:14,c:'#8f8'});
+  }
+  else if(p&&p.kind!=='node') sel=[p];
+  else sel=[];
+}
 
 /* ================= HUD ================= */
 function clickHot(h){
@@ -547,7 +659,7 @@ function refreshHUD(){
     selTitleEl.textContent=sel.length+' units selected';
     hplineEl.textContent=(w2?w2+' workers ':'')+(m2?m2+' marines':'');
   }
-  const sig=sel.map(e=>e.id).join(',');
+  const sig=sel.map(e=>e.id).join(',')+'|'+(placing||'')+'|'+(attackMode?'a':'');
   if(sig!==btnSig){ btnSig=sig; rebuildButtons(); }
   for(const d of btnDefs) d.el.classList.toggle('disabled',res[0].m<d.cost);
 }
@@ -567,6 +679,12 @@ function rebuildButtons(){
     }});
   if(own.some(e=>e.kind==='unit'&&e.type==='worker'))
     defs.push({label:'Build Barracks',sub:'&#9670;150 · B',hot:'b',cost:150,fn:startPlace});
+  if(own.some(e=>e.kind==='unit'))
+    defs.push({label:attackMode?'Tap a target&hellip;':'Attack-Move',sub:attackMode?'tap map / Esc cancels':'A or tap, then target',hot:'',cost:0,fn:()=>{attackMode=!attackMode;}});
+  if(placing)
+    defs.unshift({label:'Cancel Build',sub:'Esc',hot:'',cost:0,fn:()=>{placing=null;}});
+  if(own.length)
+    defs.push({label:'Deselect',sub:'&#10005;',hot:'',cost:0,fn:()=>{sel=[];}});
   for(const d of defs){
     const el=document.createElement('button');
     el.className='abtn';

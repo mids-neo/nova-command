@@ -30,6 +30,20 @@ Mine crystals, train an army, and destroy the red Command Center before the enem
 | Arrow keys / minimap | Pan camera |
 | **H** | Toggle help |
 
+### Touch (iPad / phone)
+
+| Gesture | Action |
+|---|---|
+| Drag | Scroll the map |
+| Tap unit/building | Select it |
+| Double-tap a unit | Select all of that type on screen |
+| Tap ground / enemy / crystals (with units selected) | Move · attack · mine |
+| Tap minimap | Jump camera |
+| Bottom-bar buttons | Train, build, attack-move, deselect |
+| ARMY / BASE buttons | Select all marines / center on base |
+
+To place a building, tap **Build Barracks**, then touch and drag on the map to position the ghost — lift your finger to place it.
+
 ## Tips
 
 - Start by training workers (select Command Center, press **Q**) — more workers means faster minerals.
