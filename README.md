@@ -8,7 +8,17 @@ A StarCraft-style real-time strategy game in a single HTML file — no dependenc
 
 ## The game
 
-Mine crystals, train an army, and destroy the red Command Center before the enemy AI destroys yours.
+Mine crystals, train an army, and destroy the enemy Command Center before they destroy yours — against the AI, or head-to-head against a friend.
+
+## 2-player online
+
+No accounts, no server setup:
+
+1. Player one clicks **HOST 2-PLAYER** and gets a 4-digit room code.
+2. Player two clicks **JOIN 2-PLAYER** on their own device and enters the code.
+3. That's it — host plays blue (left base), guest plays red (right base).
+
+Under the hood it's a peer-to-peer WebRTC data channel (PeerJS handles the handshake). The host runs the authoritative simulation; the guest sends commands and renders interpolated snapshots at ~12 Hz. Works across networks, desktop and iPad alike.
 
 - **Economy** — worker drones mine crystal fields and haul them back to your Command Center
 - **Base building** — build Barracks, train Marines, set rally points
