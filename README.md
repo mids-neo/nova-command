@@ -18,10 +18,13 @@ No accounts, no server setup:
 2. Player two clicks **JOIN 2-PLAYER** on their own device and enters the code.
 3. That's it — host plays blue (left base), guest plays red (right base).
 
+After a match, both players can hit **REMATCH** to instantly restart over the same connection.
+
 Under the hood it's a peer-to-peer WebRTC data channel (PeerJS handles the handshake). The host runs the authoritative simulation; the guest sends commands and renders interpolated snapshots at ~12 Hz. Works across networks, desktop and iPad alike.
 
-- **Economy** — worker drones mine crystal fields and haul them back to your Command Center
-- **Base building** — build Barracks, train Marines, set rally points
+- **Economy** — worker drones mine crystal fields; contested neutral expansions mid-map; build extra Command Centers to expand
+- **Base building** — Barracks (marines), Factory (siege mechs), Supply Depots (raise the supply cap), defensive Turrets
+- **Units** — Marines (fast, cheap) and Siege Mechs (slow, long-range, splash damage) with attack/armor upgrades researched at the Command Center
 - **Combat** — attack-move, drag-select, glowing lasers, muzzle flashes, HP bars, explosions with screen shake and smoke, retro synth SFX
 - **Fog of war** — the map starts dark; your units reveal it as they move, and enemies are only visible inside your vision (explored ground stays dimly remembered)
 - **Enemy AI** — runs its own economy, expands, defends its base, and sends escalating attack waves (first one around the 3-minute mark)
@@ -35,9 +38,12 @@ Under the hood it's a peer-to-peer WebRTC data channel (PeerJS handles the hands
 | Left click / drag | Select unit(s) |
 | Right click | Move · attack · mine · set rally |
 | **Q** | Train unit (building selected) |
-| **B** | Build Barracks (worker selected) |
+| **B / V / F / T / C** | Build Barracks / Depot / Factory / Turret / Command Center (worker selected) |
 | **A** + click | Attack-move |
-| **E** | Select all marines |
+| **E** | Select army |
+| **I** | Cycle idle workers |
+| **1–5** | Control groups (**Shift**+digit assigns) |
+| **M** | Mute |
 | **Space** | Center camera on base |
 | Arrow keys / minimap | Pan camera |
 | **H** | Toggle help |
@@ -59,9 +65,19 @@ To place a building, tap **Build Barracks**, then touch and drag on the map to p
 ## Tips
 
 - Start by training workers (select Command Center, press **Q**) — more workers means faster minerals.
+- Watch your supply (shown bottom-left) — build Depots before you get supply-blocked.
+- Siege Mechs outrange everything, including Turrets — escort them with marines.
 - Get a Barracks up by ~1:30. The first enemy wave hits around 3:00.
 - Defend your base first, then counter-attack. Attacking while a wave is inbound is how you get base-raced.
 - Marines cost 60, workers 50, Barracks 150.
+
+## Difficulty
+
+Three AI levels from the menu: **Easy** (relaxed, small waves), **Normal**, and **Hard** (fast waves, siege mechs, turrets, and upgrades).
+
+## Install as an app
+
+It's a PWA — "Add to Home Screen" on iPad/Android or "Install" in desktop Chrome gives you a fullscreen app with an icon. Solo play works offline.
 
 ## Development
 

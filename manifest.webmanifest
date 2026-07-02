@@ -1,0 +1,14 @@
+{
+  "name": "Nova Command",
+  "short_name": "Nova",
+  "description": "A tiny space RTS — mine, build, conquer. Solo vs AI or 2-player online.",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#05070d",
+  "theme_color": "#05070d",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
