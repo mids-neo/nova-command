@@ -10,11 +10,13 @@ A StarCraft-style real-time strategy game in a single HTML file — no dependenc
 
 Mine crystals, train an army, and destroy the red Command Center before the enemy AI destroys yours.
 
-- **Economy** — workers mine crystal fields and haul them back to your Command Center
+- **Economy** — worker drones mine crystal fields and haul them back to your Command Center
 - **Base building** — build Barracks, train Marines, set rally points
-- **Combat** — attack-move, drag-select, lasers, HP bars, explosions, retro synth SFX
+- **Combat** — attack-move, drag-select, glowing lasers, muzzle flashes, HP bars, explosions with screen shake and smoke, retro synth SFX
+- **Fog of war** — the map starts dark; your units reveal it as they move, and enemies are only visible inside your vision (explored ground stays dimly remembered)
 - **Enemy AI** — runs its own economy, expands, defends its base, and sends escalating attack waves (first one around the 3-minute mark)
-- 2600×1800 scrollable map with a clickable minimap
+- **Graphics** — procedurally pre-rendered sprite units, parallax nebula starfield, animated buildings, additive-blend effects, retina-sharp canvas — still zero asset files
+- 2600×1800 scrollable map with a clickable (fog-aware) minimap
 
 ## Controls
 
