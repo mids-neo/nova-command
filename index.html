@@ -527,7 +527,16 @@ function placementValid(type,x,y){
 
 /* ================= sound ================= */
 let AC=null, lastPew=0;
-function ac(){ if(!AC){ try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } return AC; }
+function ac(){
+  if(!AC){
+    try{
+      // iOS: play through the media channel so the silent/ringer switch doesn't mute the game
+      if(typeof navigator!=='undefined'&&navigator.audioSession)navigator.audioSession.type='playback';
+    }catch(e){}
+    try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}
+  }
+  return AC;
+}
 function beep(f,d,type,vol){
   if(muted)return;
   const a=ac(); if(!a)return;
@@ -561,21 +570,27 @@ function startMusic(){
   if(MUS||muted)return;
   const a=ac(); if(!a)return;
   try{
-    const master=a.createGain(); master.gain.value=0.013; master.connect(a.destination);
+    const master=a.createGain(); master.gain.value=0.03; master.connect(a.destination);
+    // two drone octaves: the low pair for real speakers, the mid pair so
+    // phone speakers (which can't reproduce <100Hz) still hear a pad
     const d1=a.createOscillator(); d1.type='sine'; d1.frequency.value=55;
     const d2=a.createOscillator(); d2.type='sine'; d2.frequency.value=82.5;
-    const dg=a.createGain(); dg.gain.value=0.5;
+    const d3=a.createOscillator(); d3.type='sine'; d3.frequency.value=220;
+    const d4=a.createOscillator(); d4.type='sine'; d4.frequency.value=330;
+    const dg=a.createGain(); dg.gain.value=0.4;
+    const dg2=a.createGain(); dg2.gain.value=0.14;
     const lfo=a.createOscillator(); lfo.frequency.value=0.05;
-    const lg=a.createGain(); lg.gain.value=0.22;
+    const lg=a.createGain(); lg.gain.value=0.18;
     lfo.connect(lg); lg.connect(dg.gain);
     d1.connect(dg); d2.connect(dg); dg.connect(master);
-    d1.start(); d2.start(); lfo.start();
-    const scale=[110,130.8,164.8,196,220,261.6,329.6];
+    d3.connect(dg2); d4.connect(dg2); dg2.connect(master);
+    d1.start(); d2.start(); d3.start(); d4.start(); lfo.start();
+    const scale=[220,261.6,329.6,392,440,523.3,659.3];
     const iv=setInterval(()=>{
       if(muted||!MUS)return;
       try{
         const t=a.currentTime+0.1;
-        const n=scale[(Math.random()*scale.length)|0]*(Math.random()<0.3?2:1);
+        const n=scale[(Math.random()*scale.length)|0]*(Math.random()<0.25?0.5:1);
         const o=a.createOscillator(), g=a.createGain();
         o.type='triangle'; o.frequency.value=n;
         g.gain.setValueAtTime(0.0001,t);
