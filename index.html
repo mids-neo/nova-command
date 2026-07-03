@@ -90,6 +90,22 @@
   #mpInfo{color:#9fe3a1;font-size:14px;margin-bottom:10px;min-height:20px;max-width:420px}
   #mpRow{display:none}
   #mpCode{background:#0a1220;border:1px solid #2b4a7f;color:#7fd8ff;font:22px "Menlo","Consolas",monospace;padding:10px;width:110px;text-align:center;border-radius:6px;letter-spacing:6px}
+  /* overlays: center when content fits, scroll from the top when it doesn't
+     (flex spacers collapse to their basis when space runs out) */
+  #menu,#over{justify-content:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #menu::before,#menu::after,#over::before,#over::after{content:'';flex:1 0 14px}
+  #menu>*,#over>*{flex-shrink:0}
+  #statsGraph{width:min(320px,92vw)}
+  @media (max-height:480px){
+    #menuTitle{font-size:24px;letter-spacing:4px;margin-bottom:2px}
+    #menuSub{font-size:10px;margin-bottom:8px}
+    .mbtn{padding:8px 18px;font-size:12px;margin:3px;min-width:200px}
+    #overTitle{font-size:26px;letter-spacing:4px;margin-bottom:4px}
+    #overSub{font-size:11px;margin-bottom:10px}
+    #statsBox{margin-bottom:10px}
+    #statsGraph{height:64px}
+    #mpInfo{font-size:11px;margin-bottom:6px}
+  }
 </style>
 </head>
 <body>
