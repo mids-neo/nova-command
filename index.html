@@ -20,7 +20,7 @@
   #selPane{min-width:230px;font-size:12px}
   #selTitle{font-size:14px;color:#fff}
   #hpline{font-size:11px;color:#9fb6d9}
-  #btnPane{flex:1;display:flex;align-items:center;gap:6px;padding:4px 14px;border-right:none;flex-wrap:wrap;overflow:hidden;align-content:center}
+  #btnPane{flex:1;display:flex;flex-direction:row;justify-content:flex-start;align-items:center;gap:6px;padding:4px 14px;border-right:none;flex-wrap:wrap;overflow:hidden;align-content:center}
   .abtn{background:#122341;border:1px solid #2b4a7f;color:#cfe3ff;padding:5px 9px;font:11px "Menlo","Consolas",monospace;cursor:pointer;border-radius:4px;min-width:96px;text-align:left;touch-action:manipulation}
   .abtn:hover{background:#1a3560}
   .abtn small{display:block;color:#7fd8ff;margin-top:2px}
@@ -65,8 +65,11 @@
     #selPane{min-width:94px;font-size:10px}
     #selTitle{font-size:11px}
     #hpline{font-size:9px}
-    #btnPane{gap:4px;padding:3px 6px}
-    .abtn{min-width:78px;padding:4px 6px;font-size:9.5px}
+    #selPane{max-width:112px;overflow:hidden}
+    #selTitle,#hpline{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* single swipeable row — wrapping used to clip buttons past the bar height */
+    #btnPane{gap:4px;padding:0 6px;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+    .abtn{min-width:78px;padding:6px;font-size:9.5px;flex:0 0 auto}
     .abtn small{font-size:9px}
     #quick{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;max-width:72vw;gap:6px;right:6px;bottom:calc(88px + env(safe-area-inset-bottom))}
     .qbtn{padding:8px 9px;font-size:10px}
@@ -268,6 +271,9 @@ function resize(){
   buildVignette();
 }
 addEventListener('resize',resize); resize();
+// mobile browsers resize the visual viewport (toolbar collapse, keyboard) without
+// always firing window resize — re-measure so the bar and camera stay aligned
+if(typeof window!=='undefined'&&window.visualViewport)window.visualViewport.addEventListener('resize',resize);
 
 const stars=[];
 for(let i=0;i<260;i++) stars.push({x:Math.random()*4000, y:Math.random()*3000, s:Math.random()*1.6+0.4, a:Math.random()*0.5+0.15, f:0.5+Math.random()*0.4, tw:Math.random()*6});
