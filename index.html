@@ -32,8 +32,13 @@
   #over{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(3,5,10,.78);z-index:10;color:#fff}
   #overTitle{font-size:54px;letter-spacing:10px;margin-bottom:10px}
   #overSub{color:#8fa8cf;margin-bottom:26px;font-size:14px}
-  #again,#rematch{background:#122341;border:1px solid #2b4a7f;color:#cfe3ff;padding:12px 28px;font:14px "Menlo","Consolas",monospace;cursor:pointer;border-radius:4px;touch-action:manipulation}
-  #again:hover,#rematch:hover{background:#1a3560}
+  #again,#rematch,#saveReplay{background:#122341;border:1px solid #2b4a7f;color:#cfe3ff;padding:12px 28px;font:14px "Menlo","Consolas",monospace;cursor:pointer;border-radius:4px;touch-action:manipulation}
+  #again:hover,#rematch:hover,#saveReplay:hover{background:#1a3560}
+  #statsBox{margin-bottom:20px;text-align:center}
+  #statsTable{margin:0 auto 10px;border-collapse:collapse;font-size:11px;color:#9fb6d9}
+  #statsTable td,#statsTable th{padding:3px 10px;border-bottom:1px solid #16233a;text-align:right}
+  #statsTable th{color:#5f7aa6;font-weight:normal}
+  #statsGraph{background:rgba(4,7,13,0.6);border:1px solid #1c2b45;border-radius:4px}
   #helpTouch{display:none;position:fixed;top:10px;left:12px;color:#5f7aa6;font-size:11px;line-height:1.7;text-shadow:0 1px 2px #000;z-index:4;pointer-events:none}
   #helpTouch b{color:#8fb4e8}
   #quick{position:fixed;right:10px;bottom:106px;display:none;flex-direction:column;gap:8px;z-index:6}
@@ -119,7 +124,12 @@
   <div class="pane" id="selPane"><div id="selTitle">Nothing selected</div><div id="hpline"></div></div>
   <div class="pane" id="btnPane"></div>
 </div>
-<div id="over"><div id="overTitle"></div><div id="overSub"></div><div style="display:flex;gap:10px"><button id="rematch" style="display:none">REMATCH</button><button id="again" onclick="location.reload()">PLAY AGAIN</button></div></div>
+<div id="over"><div id="overTitle"></div><div id="overSub"></div>
+<div id="statsBox" style="display:none">
+  <table id="statsTable"></table>
+  <canvas id="statsGraph" width="320" height="90"></canvas>
+</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button id="rematch" style="display:none">REMATCH</button><button id="saveReplay" style="display:none">SAVE REPLAY</button><button id="again" onclick="location.reload()">PLAY AGAIN</button></div></div>
 <div id="menu">
   <div id="menuTitle">NOVA COMMAND</div>
   <div id="menuSub">a tiny space RTS — mine, build, conquer</div>
@@ -129,10 +139,13 @@
     <button class="mbtn" id="dNormal" style="min-width:0;padding:12px 18px">NORMAL</button>
     <button class="mbtn" id="dHard" style="min-width:0;padding:12px 18px">HARD</button>
   </div>
-  <button class="mbtn" id="mHost">&#9737;&nbsp; HOST 2-PLAYER</button>
-  <button class="mbtn" id="mJoin">&#8618;&nbsp; JOIN 2-PLAYER</button>
+  <button class="mbtn" id="mHost">&#9737;&nbsp; HOST MATCH &middot; 2-4 PLAYERS</button>
+  <button class="mbtn" id="mJoin">&#8618;&nbsp; JOIN MATCH</button>
+  <button class="mbtn" id="mReplay">&#9655;&nbsp; WATCH REPLAY</button>
+  <input type="file" id="replayFile" accept=".json,application/json" style="display:none">
   <div id="mpPane">
     <div id="mpInfo"></div>
+    <button class="mbtn" id="mpStart" style="display:none">START MATCH</button>
     <div id="mpRow">
       <input id="mpCode" placeholder="0000" maxlength="4" inputmode="numeric" autocomplete="off">
       <button class="mbtn" id="mpGo" style="min-width:0;padding:13px 24px">JOIN</button>
@@ -166,24 +179,36 @@ const DIFFS={
 let DIFF=DIFFS.normal;
 const TEAM=[
   {main:'#54a8ff',dark:'#173a63',hi:'#bfe0ff',shade:'#0f2a4d',rgb:'110,190,255'},
-  {main:'#ff5d5d',dark:'#5e1a1a',hi:'#ffc4ba',shade:'#4d1010',rgb:'255,120,110'}
+  {main:'#ff5d5d',dark:'#5e1a1a',hi:'#ffc4ba',shade:'#4d1010',rgb:'255,120,110'},
+  {main:'#52d17a',dark:'#1a5e33',hi:'#bdf5cf',shade:'#0f4d26',rgb:'110,255,150'},
+  {main:'#ffd166',dark:'#6e5518',hi:'#ffedbd',shade:'#4d3c10',rgb:'255,210,110'}
 ];
 const CARRY=8, MINE_TIME=1.8, PAN_SPEED=520;
 
 /* ================= state ================= */
 let eid=0, time=0, gameOver=false;
 let started=false;            // false until a mode is chosen in the menu
-let ME=0;                     // which player this browser controls (guest=1)
-const NET={on:false,guest:false,peer:null,conn:null};
+let ME=0;                     // which player this browser controls (guests get 1-3)
+const NET={on:false,guest:false,peer:null,conn:null,conns:[]};
 const SNAP_DT=0.084;          // ~12Hz host snapshots
 let snapAcc=0, evq=[];        // fx/sound events accumulated between snapshots
-const atkLvl=[0,0], armLvl=[0,0];
+const atkLvl=[0,0,0,0], armLvl=[0,0,0,0];
 let gSu=0, gSc=10;            // guest's supply mirror (host computes)
 const groups={};              // control groups 1..5
 let muted=false;
 try{ if(typeof localStorage!=='undefined')muted=localStorage.getItem('novaMuted')==='1'; }catch(e){}
 const units=[], buildings=[], nodes=[], fx=[];
-const res=[{m:200},{m:200}];
+const res=[{m:200},{m:200},{m:200},{m:200}];
+let PLAYERS=2;                // active players this match (2-4)
+let SPECT=false;              // eliminated (or replay viewer): see everything, control nothing
+let REPLAYING=false;
+let MAPSEED=(Math.random()*1e9)|0;
+const pings=[];               // minimap attack pings {x,y,t0}
+let stats=null, armySeries=[];
+function resetStats(){ stats=[0,1,2,3].map(()=>({mined:0,built:0,lost:0,killed:0,bLost:0})); armySeries=[]; }
+resetStats();
+const REC={snaps:[],last:-1};  // replay recording (host/solo, ~2Hz)
+let RPL=null;                  // replay playback state
 let camX=0, camY=0, VW=innerWidth, VH=innerHeight;
 let sel=[], placing=null, attackMode=false;
 let dragging=false, dragX=0, dragY=0, mmDrag=false;
@@ -276,7 +301,7 @@ const CRYSTAL=makeCanvas(64,64);
 
 // pre-rendered unit sprites (2x resolution, facing +x, rotated at blit time)
 // marine frames: [walk-a, walk-b, idle] · worker frames: [idle, thrusting]
-const SPR={marine:[[],[]],worker:[[],[]],siege:[[],[]]};
+const SPR={marine:[],worker:[],siege:[]};
 const SPRSIZE={worker:36,marine:36,siege:44};
 (function(){
   function rr(g,x,y,w,h,r){ g.beginPath(); if(g.roundRect)g.roundRect(x,y,w,h,r); else g.rect(x,y,w,h); }
@@ -371,7 +396,7 @@ const SPRSIZE={worker:36,marine:36,siege:44};
     g.fillRect(-7,-1.4,2.6,2.8);
     g.restore(); return c;
   }
-  for(let o=0;o<2;o++){
+  for(let o=0;o<TEAM.length;o++){
     const T=TEAM[o];
     SPR.marine[o]=[marine(T,1),marine(T,-1),marine(T,0)];
     SPR.worker[o]=[worker(T,false),worker(T,true)];
@@ -393,8 +418,8 @@ function fogIdx(x,y){
   const gy=Math.max(0,Math.min(FOG.h-1,(y/FOG.cell)|0));
   return gy*FOG.w+gx;
 }
-function fogVisible(x,y){ return FOG.vis[fogIdx(x,y)]===1; }
-function fogSeen(x,y){ return FOG.seen[fogIdx(x,y)]===1; }
+function fogVisible(x,y){ return SPECT||FOG.vis[fogIdx(x,y)]===1; }
+function fogSeen(x,y){ return SPECT||FOG.seen[fogIdx(x,y)]===1; }
 function updateFog(){
   FOG.vis.fill(0);
   function mark(x,y,r){
@@ -508,6 +533,44 @@ function pew(){
     o.start(); o.stop(a.currentTime+0.1);
   }catch(e){}
 }
+// ambient music: quiet drone + slow pentatonic arpeggio
+let MUS=null;
+function startMusic(){
+  if(MUS||muted)return;
+  const a=ac(); if(!a)return;
+  try{
+    const master=a.createGain(); master.gain.value=0.013; master.connect(a.destination);
+    const d1=a.createOscillator(); d1.type='sine'; d1.frequency.value=55;
+    const d2=a.createOscillator(); d2.type='sine'; d2.frequency.value=82.5;
+    const dg=a.createGain(); dg.gain.value=0.5;
+    const lfo=a.createOscillator(); lfo.frequency.value=0.05;
+    const lg=a.createGain(); lg.gain.value=0.22;
+    lfo.connect(lg); lg.connect(dg.gain);
+    d1.connect(dg); d2.connect(dg); dg.connect(master);
+    d1.start(); d2.start(); lfo.start();
+    const scale=[110,130.8,164.8,196,220,261.6,329.6];
+    const iv=setInterval(()=>{
+      if(muted||!MUS)return;
+      try{
+        const t=a.currentTime+0.1;
+        const n=scale[(Math.random()*scale.length)|0]*(Math.random()<0.3?2:1);
+        const o=a.createOscillator(), g=a.createGain();
+        o.type='triangle'; o.frequency.value=n;
+        g.gain.setValueAtTime(0.0001,t);
+        g.gain.exponentialRampToValueAtTime(0.55,t+0.7);
+        g.gain.exponentialRampToValueAtTime(0.0001,t+3.4);
+        o.connect(g); g.connect(master);
+        o.start(t); o.stop(t+3.6);
+      }catch(e){}
+    },2400);
+    MUS={master,iv,osc:[d1,d2,lfo]};
+  }catch(e){}
+}
+function stopMusic(){
+  if(!MUS)return;
+  try{ clearInterval(MUS.iv); for(const o of MUS.osc)o.stop(); MUS.master.disconnect(); }catch(e){}
+  MUS=null;
+}
 
 /* ================= messages ================= */
 function msg(text){
@@ -519,27 +582,54 @@ function msg(text){
 }
 
 /* ================= combat / orders ================= */
-let lastAtkEv=-99;
-function damage(e,amt){
+const lastAtkEv=[-99,-99,-99,-99];
+function addPing(x,y){
+  const now=time;
+  for(const p of pings)if(now-p.t0<2.5&&Math.hypot(p.x-x,p.y-y)<250)return;
+  pings.push({x,y,t0:now});
+  if(pings.length>10)pings.shift();
+}
+function aliveOwners(){
+  const s=new Set();
+  for(const b of buildings)if(!b.dead&&b.type==='command'&&b.done)s.add(b.owner);
+  return s;
+}
+function handleElimination(o){
+  const alive=aliveOwners();
+  if(alive.size<=1){
+    endGame(alive.size?[...alive][0]:(o===0?1:0));
+    return;
+  }
+  if(o===ME){ SPECT=true; msg('You have been eliminated — spectating.'); }
+  else msg('Player '+(o+1)+' has been eliminated!');
+  if(!NET.guest)evq.push(['elim',o]);
+}
+function damage(e,amt,src){
   if(e.dead)return;
   e.hp-=Math.max(1,amt-(e.owner!==undefined?armLvl[e.owner]:0));
-  if(e.owner===0&&time-lastAttackMsg>8){ lastAttackMsg=time; msg("We're under attack!"); beep(200,0.2,'sawtooth',0.05); }
-  if(NET.on&&!NET.guest&&e.owner===1&&time-lastAtkEv>8){ lastAtkEv=time; evq.push(['atk']); }
+  if(e.owner===ME&&time-lastAttackMsg>8){ lastAttackMsg=time; msg("We're under attack!"); beep(200,0.2,'sawtooth',0.05); }
+  if(e.owner===ME)addPing(e.x,e.y);
+  if(!NET.guest&&e.owner!==0&&time-lastAtkEv[e.owner]>8){ lastAtkEv[e.owner]=time; evq.push(['atk',e.owner,Math.round(e.x),Math.round(e.y)]); }
   if(e.hp<=0){
     e.dead=true; boom(e);
+    if(e.kind==='unit'){
+      stats[e.owner].lost++;
+      if(src!==undefined)stats[src].killed++;
+    }
     if(e.kind==='building'){
+      stats[e.owner].bLost++;
       if(e.type==='command'&&!buildings.some(b=>!b.dead&&b.owner===e.owner&&b.type==='command'&&b.done)){
-        endGame(e.owner===1?0:1);
+        handleElimination(e.owner);
       }
-      else if(e.owner===0){ msg('Your '+BT[e.type].name+' was destroyed!'); }
-      else if(NET.on&&!NET.guest&&e.owner===1){ evq.push(['bdes',e.type]); }
+      else if(e.owner===ME){ msg('Your '+BT[e.type].name+' was destroyed!'); }
+      else if(!NET.guest&&e.owner!==0){ evq.push(['bdes',e.owner,e.type]); }
     }
   }
 }
 function boom(e){
   const big=e.kind==='building';
   boomFx(e.x,e.y,big,e.owner);
-  if(NET.on&&!NET.guest&&evq.length<60)evq.push(['b',Math.round(e.x),Math.round(e.y),big?1:0,e.owner]);
+  if(!NET.guest&&evq.length<60)evq.push(['b',Math.round(e.x),Math.round(e.y),big?1:0,e.owner]);
 }
 function boomFx(x,y,big,owner){
   const c=TEAM[owner]?TEAM[owner].main:'#7fd8ff';
@@ -566,14 +656,14 @@ function fireAt(u,target){
   fx.push({kind:'laser',x1:mx,y1:my,x2:target.x,y2:target.y,life:0.09,max:0.09,c:TEAM[u.owner].main});
   fx.push({kind:'flash',x:target.x,y:target.y,life:0.12,max:0.12});
   u.flash=0.07;
-  if(NET.on&&!NET.guest&&evq.length<60)evq.push(['s',Math.round(mx),Math.round(my),Math.round(target.x),Math.round(target.y),u.owner]);
+  if(!NET.guest&&evq.length<60)evq.push(['s',Math.round(mx),Math.round(my),Math.round(target.x),Math.round(target.y),u.owner]);
   const base=t.dmg+atkLvl[u.owner]*(u.type==='siege'?4:1);
-  damage(target,base);
+  damage(target,base,u.owner);
   if(u.type==='siege'){
     fx.push({kind:'ring',x:target.x,y:target.y,life:0.3,max:0.3,r:26,c:'#ffd97a'});
     for(const e of units)
       if(!e.dead&&e.owner!==u.owner&&e!==target&&Math.hypot(e.x-target.x,e.y-target.y)<30)
-        damage(e,Math.ceil(base/2));
+        damage(e,Math.ceil(base/2),u.owner);
   }
   pew();
 }
@@ -582,8 +672,8 @@ function turretFire(b,target){
   const mx=b.x+Math.cos(b.face)*14, my=b.y+Math.sin(b.face)*14;
   fx.push({kind:'laser',x1:mx,y1:my,x2:target.x,y2:target.y,life:0.09,max:0.09,c:TEAM[b.owner].main});
   fx.push({kind:'flash',x:target.x,y:target.y,life:0.12,max:0.12});
-  if(NET.on&&!NET.guest&&evq.length<60)evq.push(['s',Math.round(mx),Math.round(my),Math.round(target.x),Math.round(target.y),b.owner]);
-  damage(target,bt.dmg+atkLvl[b.owner]);
+  if(!NET.guest&&evq.length<60)evq.push(['s',Math.round(mx),Math.round(my),Math.round(target.x),Math.round(target.y),b.owner]);
+  damage(target,bt.dmg+atkLvl[b.owner],b.owner);
   pew();
 }
 function step(u,x,y,dt){
@@ -607,7 +697,7 @@ function harvestStep(u,o,dt){
     const cc=nearestCC(u.owner,u);
     if(!cc)return;
     if(dist(u,cc)<=Math.max(cc.w,cc.h)/2+t.r+3){
-      res[u.owner].m+=u.carry; u.carry=0;
+      res[u.owner].m+=u.carry; stats[u.owner].mined+=u.carry; u.carry=0;
       if(!o.node||o.node.dead||o.node.amount<=0){
         const n=nearestNode(u);
         if(n)o.node=n; else {u.order=null; return;}
@@ -669,8 +759,8 @@ function updateUnit(u,dt){
         if(Math.random()<dt*6) fx.push({kind:'p',x:b.x+(Math.random()-0.5)*b.w,y:b.y+(Math.random()-0.5)*b.h,vx:0,vy:-25,life:0.35,max:0.35,c:'#ffd97a'});
         if(b.progress>=1){
           b.done=true; b.hp=b.maxHp; u.order=null;
-          if(b.owner===0){ msg(bt.name+' complete.'); beep(660,0.14,'triangle',0.05); }
-          else if(NET.on&&!NET.guest&&b.owner===1){ evq.push(['bc',b.type]); }
+          if(b.owner===ME){ msg(bt.name+' complete.'); beep(660,0.14,'triangle',0.05); }
+          else if(!NET.guest&&b.owner!==0){ evq.push(['bc',b.owner,b.type]); }
         }
       }
       break;
@@ -806,27 +896,57 @@ function spawnField(fx0,fy0,count,amount){
     nodes.push({id:++eid,x:fx0+k*72,y:fy0+((i%2)?30:-30),amount,r:13,dead:false});
   }
 }
+function mulberry32(a){
+  return function(){
+    a|=0; a=(a+0x6D2B79F5)|0;
+    let t=Math.imul(a^(a>>>15),1|a);
+    t=(t+Math.imul(t^(t>>>7),61|t))^t;
+    return ((t^(t>>>14))>>>0)/4294967296;
+  };
+}
+const BASE_SPOTS={
+  2:[[320,900,1],[2280,900,-1]],
+  3:[[320,450,1],[2280,450,-1],[1300,1440,1]],
+  4:[[320,450,1],[2280,450,-1],[320,1350,1],[2280,1350,-1]]
+};
 function buildWorld(){
-  spawnBase(0,320,WORLD.h/2,1);
-  spawnBase(1,WORLD.w-320,WORLD.h/2,-1);
-  spawnField(WORLD.w/2,240,5,1200);
-  spawnField(WORLD.w/2,WORLD.h-240,5,1200);
+  const rng=mulberry32(MAPSEED);
+  const spots=BASE_SPOTS[PLAYERS]||BASE_SPOTS[2];
+  const dy=PLAYERS===2?Math.round((rng()-0.5)*380):0;
+  for(let o=0;o<PLAYERS;o++){
+    const sp=spots[o];
+    spawnBase(o,sp[0],sp[1]+dy,sp[2]);
+  }
+  // mirrored neutral expansions (point symmetry through map center keeps it fair)
+  const nf=PLAYERS===2?2+((rng()*2)|0):2;
+  for(let k=0;k<nf;k++){
+    const fx0=800+rng()*700, fy0=500+rng()*800;
+    const amt=1000+((rng()*5)|0)*100;
+    spawnField(fx0,fy0,5,amt);
+    spawnField(WORLD.w-fx0,WORLD.h-fy0,5,amt);
+  }
 }
 function resetGame(){
   units.length=0; buildings.length=0; nodes.length=0; fx.length=0; evq.length=0;
+  pings.length=0;
   sel=[]; placing=null; attackMode=false; dragging=false;
-  gameOver=false; time=0; shake=0; snapAcc=0;
-  res[0].m=200; res[1].m=200;
-  atkLvl[0]=atkLvl[1]=0; armLvl[0]=armLvl[1]=0;
+  gameOver=false; SPECT=false; time=0; shake=0; snapAcc=0;
+  for(let o=0;o<4;o++){ res[o].m=200; atkLvl[o]=0; armLvl[o]=0; lastAtkEv[o]=-99; }
   gSu=0; gSc=10;
+  resetStats();
   for(const k in groups)delete groups[k];
   ai.next=1; ai.waveSize=DIFF.waveStart; ai.waveCd=0;
-  lastAttackMsg=-99; lastAtkEv=-99;
+  lastAttackMsg=-99;
   FOG.vis.fill(0); FOG.seen.fill(0);
   eid=0;
-  if(!NET.guest)buildWorld();
-  camX=clamp((ME===0?320:WORLD.w-320)-VW/2,0,Math.max(0,WORLD.w-VW));
-  camY=clamp(WORLD.h/2-viewH()/2,0,Math.max(0,WORLD.h-viewH()));
+  REC.snaps.length=0; REC.last=-1;
+  if(!NET.guest){
+    MAPSEED=(Math.random()*1e9)|0;
+    buildWorld();
+  }
+  const sp=(BASE_SPOTS[PLAYERS]||BASE_SPOTS[2])[ME]||[320,900];
+  camX=clamp(sp[0]-VW/2,0,Math.max(0,WORLD.w-VW));
+  camY=clamp(sp[1]-viewH()/2,0,Math.max(0,WORLD.h-viewH()));
   updateFog();
   document.getElementById('over').style.display='none';
   msgsEl.innerHTML='';
@@ -1000,6 +1120,7 @@ function selectIdle(){
 function toggleMute(){
   muted=!muted;
   try{ if(typeof localStorage!=='undefined')localStorage.setItem('novaMuted',muted?'1':'0'); }catch(e){}
+  if(muted)stopMusic(); else if(started)startMusic();
   msg(muted?'Sound off.':'Sound on.');
 }
 function centerBase(){
@@ -1108,12 +1229,13 @@ function clickHot(h){
   if(d)d.fn();
 }
 function refreshHUD(){
-  mineralsEl.innerHTML='&#9670; '+Math.floor(res[ME].m);
-  const w=units.filter(u=>u.owner===ME&&!u.dead&&u.type==='worker').length;
-  const m=units.filter(u=>u.owner===ME&&!u.dead&&u.type==='marine').length;
-  const sg=units.filter(u=>u.owner===ME&&!u.dead&&u.type==='siege').length;
-  const su=NET.guest?gSu:supplyUsed(ME), sc=NET.guest?gSc:supplyCap(ME);
-  countsEl.textContent='W '+w+' · M '+m+(sg?' · S '+sg:'')+' · Supply '+su+'/'+sc;
+  const mo=ME>=0?ME:0; // spectators/replay borrow player 0's pane
+  mineralsEl.innerHTML='&#9670; '+Math.floor(res[mo].m);
+  const w=units.filter(u=>u.owner===mo&&!u.dead&&u.type==='worker').length;
+  const m=units.filter(u=>u.owner===mo&&!u.dead&&u.type==='marine').length;
+  const sg=units.filter(u=>u.owner===mo&&!u.dead&&u.type==='siege').length;
+  const su=NET.guest?gSu:supplyUsed(mo), sc=NET.guest?gSc:supplyCap(mo);
+  countsEl.textContent=(REPLAYING?'REPLAY · ':'')+'W '+w+' · M '+m+(sg?' · S '+sg:'')+' · Supply '+su+'/'+sc;
   sel=sel.filter(e=>!e.dead);
   if(!sel.length){ selTitleEl.textContent='Nothing selected'; hplineEl.textContent=''; }
   else if(sel.length===1){
@@ -1191,7 +1313,7 @@ function rebuildButtons(){
 /* ================= game over ================= */
 function endGame(winner){
   if(gameOver)return;
-  if(NET.on&&!NET.guest&&NET.conn){ try{NET.conn.send({t:'over',w:winner,tm:time});}catch(e){} }
+  if(!NET.guest)broadcast({t:'over',w:winner,tm:time,stats,series:armySeries});
   showOver(winner===ME);
 }
 function showOver(win,title){
@@ -1199,13 +1321,46 @@ function showOver(win,title){
   gameOver=true;
   const mm=Math.floor(time/60), ss=String(Math.floor(time%60)).padStart(2,'0');
   const t=document.getElementById('overTitle'), s=document.getElementById('overSub');
-  if(title){ t.textContent=title; t.style.color='#e8c34a'; s.textContent='The connection to the other player was lost.'; }
+  if(title){ t.textContent=title; t.style.color='#e8c34a'; s.textContent=title==='DISCONNECTED'?'The connection to the other player was lost.':'Thanks for watching.'; }
   else if(win){ t.textContent='VICTORY'; t.style.color='#7fd8ff'; s.textContent='Enemy base destroyed in '+mm+':'+ss+'. The sector is yours, Commander.'; beep(660,0.4,'triangle',0.06); }
   else { t.textContent='DEFEAT'; t.style.color='#ff5d5d'; s.textContent='Your Command Center fell after '+mm+':'+ss+'.'; beep(110,0.7,'sawtooth',0.07); }
   const rb=document.getElementById('rematch');
   rb.textContent='REMATCH';
   rb.style.display=title?'none':'block';
+  document.getElementById('saveReplay').style.display=(!NET.guest&&!REPLAYING&&REC.snaps.length>1)?'block':'none';
+  renderStats();
   document.getElementById('over').style.display='flex';
+}
+function renderStats(){
+  const box=document.getElementById('statsBox');
+  if(!stats||REPLAYING){ box.style.display='none'; return; }
+  box.style.display='block';
+  let html='<tr><th></th><th>Mined</th><th>Built</th><th>Kills</th><th>Lost</th></tr>';
+  for(let o=0;o<PLAYERS;o++){
+    const s=stats[o]||{mined:0,built:0,killed:0,lost:0,bLost:0};
+    html+='<tr style="color:'+TEAM[o].main+'"><td>'+(o===ME?'You':'Player '+(o+1))+'</td><td>'+s.mined+'</td><td>'+s.built+'</td><td>'+s.killed+'</td><td>'+(s.lost+s.bLost)+'</td></tr>';
+  }
+  document.getElementById('statsTable').innerHTML=html;
+  const g=document.getElementById('statsGraph').getContext('2d');
+  g.clearRect(0,0,320,90);
+  if(armySeries.length>1){
+    let maxV=10;
+    for(const row of armySeries)for(let o=1;o<row.length;o++)maxV=Math.max(maxV,row[o]);
+    const t0=armySeries[0][0], t1=armySeries[armySeries.length-1][0];
+    for(let o=0;o<PLAYERS;o++){
+      g.strokeStyle=TEAM[o].main; g.lineWidth=1.5;
+      g.beginPath();
+      for(let i=0;i<armySeries.length;i++){
+        const row=armySeries[i];
+        const x=6+(row[0]-t0)/Math.max(1,t1-t0)*308;
+        const y=84-((row[o+1]||0)/maxV)*74;
+        if(i===0)g.moveTo(x,y); else g.lineTo(x,y);
+      }
+      g.stroke();
+    }
+    g.fillStyle='#5f7aa6'; g.font='9px Menlo,Consolas,monospace';
+    g.fillText('army value over time',8,12);
+  }
 }
 
 /* ================= update ================= */
@@ -1261,10 +1416,11 @@ function update(dt){
         const lv=(q.up==='atk'?atkLvl:armLvl);
         lv[b.owner]=Math.min(3,lv[b.owner]+1);
         if(b.owner===ME){ msg((q.up==='atk'?'Attack':'Armor')+' upgrade complete (level '+lv[b.owner]+').'); beep(700,0.15,'triangle',0.05); }
-        else if(NET.on&&!NET.guest&&b.owner===1)evq.push(['up',q.up,lv[1]]);
+        else if(!NET.guest&&b.owner!==0)evq.push(['up',b.owner,q.up,lv[b.owner]]);
       } else {
         const u=makeUnit(b.owner,q.type,b.x+(Math.random()*24-12),b.y+b.h/2+16);
         units.push(u);
+        stats[b.owner].built++;
         if(q.type==='worker'){ const n=nearestNode(u); if(n)u.order={kind:'harvest',node:n}; }
         else u.order={kind:'move',x:b.rally.x,y:b.rally.y};
       }
@@ -1285,6 +1441,7 @@ function update(dt){
 
   if(!NET.on&&time>=ai.next){ ai.next=time+0.6; aiThink(); }
   if(NET.on&&!NET.guest){ snapAcc+=dt; if(snapAcc>=SNAP_DT){ snapAcc=0; sendSnap(); } }
+  else if(!NET.on&&time-REC.last>=0.5)rec(buildSnap());
 
   for(let i=fx.length-1;i>=0;i--){
     const f=fx[i];
@@ -1299,6 +1456,18 @@ function update(dt){
 
   updateFog();
   shake=shake>0.2?shake*Math.exp(-5*dt):0;
+
+  // army-value time series (every 5s)
+  if(!armySeries.length||time-armySeries[armySeries.length-1][0]>=5){
+    const row=[Math.round(time)];
+    for(let o=0;o<PLAYERS;o++){
+      let v=0;
+      for(const u of units)if(!u.dead&&u.owner===o&&u.type!=='worker')v+=UT[u.type].cost;
+      row.push(v);
+    }
+    armySeries.push(row);
+    if(armySeries.length>400)armySeries.shift();
+  }
 
   refreshHUD();
 }
@@ -1558,16 +1727,18 @@ function draw(){
   cx.globalAlpha=1;
 
   // fog of war (world-anchored, so drawn inside the shake transform)
-  const fd=FOG.img.data;
-  for(let i=0;i<FOG.vis.length;i++)fd[i*4+3]=FOG.vis[i]?0:(FOG.seen[i]?150:248);
-  FOG.ctx.putImageData(FOG.img,0,0);
-  cx.drawImage(FOG.cv,0,0,FOG.w,FOG.h,-camX,-camY,FOG.w*FOG.cell,FOG.h*FOG.cell);
+  if(!SPECT){
+    const fd=FOG.img.data;
+    for(let i=0;i<FOG.vis.length;i++)fd[i*4+3]=FOG.vis[i]?0:(FOG.seen[i]?150:248);
+    FOG.ctx.putImageData(FOG.img,0,0);
+    cx.drawImage(FOG.cv,0,0,FOG.w,FOG.h,-camX,-camY,FOG.w*FOG.cell,FOG.h*FOG.cell);
+  }
   cx.restore();
 
   // placement ghost
   if(placing){
     const t=BT[placing];
-    const ok=placementValid(placing,mouse.wx,mouse.wy)&&res[0].m>=t.cost;
+    const ok=placementValid(placing,mouse.wx,mouse.wy)&&res[ME].m>=t.cost;
     cx.globalAlpha=0.5;
     cx.fillStyle=ok?'#2f7a3f':'#8a2626';
     cx.strokeStyle=ok?'#6fdc7f':'#ff7a7a'; cx.lineWidth=2;
@@ -1603,9 +1774,23 @@ function draw(){
   for(const n of nodes){ if(!fogSeen(n.x,n.y))continue; cx.fillStyle='#49c2e8'; cx.fillRect(mm.x+n.x*kx-1,mm.y+n.y*ky-1,2,2); }
   for(const b of buildings){ if(b.owner!==ME&&!fogSeen(b.x,b.y))continue; cx.fillStyle=TEAM[b.owner].main; cx.fillRect(mm.x+b.x*kx-2,mm.y+b.y*ky-2,5,4); }
   for(const u of units){ if(u.owner!==ME&&!fogVisible(u.x,u.y))continue; cx.fillStyle=TEAM[u.owner].main; cx.fillRect(mm.x+u.x*kx-1,mm.y+u.y*ky-1,2,2); }
-  cx.globalAlpha=0.8;
-  cx.drawImage(FOG.cv,mm.x,mm.y,mm.w,mm.h);
-  cx.globalAlpha=1;
+  if(!SPECT){
+    cx.globalAlpha=0.8;
+    cx.drawImage(FOG.cv,mm.x,mm.y,mm.w,mm.h);
+    cx.globalAlpha=1;
+  }
+  // attack pings
+  for(let i=pings.length-1;i>=0;i--){
+    const p=pings[i], age=time-p.t0;
+    if(age>3){ pings.splice(i,1); continue; }
+    if(Math.sin(age*14)>-0.2){
+      cx.strokeStyle='rgba(255,80,80,'+(1-age/3)+')';
+      cx.lineWidth=1.5;
+      cx.beginPath();
+      cx.arc(mm.x+p.x*kx,mm.y+p.y*ky,3+age*4,0,7);
+      cx.stroke();
+    }
+  }
   cx.strokeStyle='rgba(255,255,255,0.75)'; cx.lineWidth=1;
   cx.strokeRect(mm.x+camX*kx,mm.y+camY*ky,VW*kx,viewH()*ky);
   cx.strokeStyle='#2b4a7f'; cx.lineWidth=1.5;
@@ -1623,7 +1808,8 @@ const ICE={config:{iceServers:[
   {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
   {urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'}
 ]}};
-let rmL=false, rmR=false;
+let rmL=false;
+const rmSet=new Set();
 
 function startSolo(diff){
   if(started)return;
@@ -1634,44 +1820,75 @@ function startSolo(diff){
   msg('Welcome, Commander. Mine crystals, train an army, destroy the red base.');
   msg('Tip: select your Command Center and press Q to train workers.');
   if(VW<760)msg('Tap select · drag scroll · tap ground/enemy to move/attack.');
+  startMusic();
 }
 function startMP(){
   if(started)return;
   started=true;
   menuEl.style.display='none';
-  msg('2-player match started. Destroy the enemy Command Center!');
+  msg(PLAYERS+'-player match started. Last Command Center standing wins!');
   if(VW<760)msg('Tap select · drag scroll · tap ground/enemy to move/attack.');
-  if(ME===1){
-    camX=clamp(WORLD.w-320-VW/2,0,Math.max(0,WORLD.w-VW));
-    camY=clamp(WORLD.h/2-viewH()/2,0,Math.max(0,WORLD.h-viewH()));
-    updateFog();
-  }
+  startMusic();
 }
 function netSend(o){ if(NET.conn){ try{NET.conn.send(o);}catch(e){} } }
+function broadcast(o){ for(const c of NET.conns){ try{c.send(o);}catch(e){} } }
 function entById(id){ return units.find(e=>e.id===id)||buildings.find(e=>e.id===id); }
 function netLost(){
   if(gameOver)return;
   if(started)showOver(false,'DISCONNECTED');
   else mpInfo.textContent='Connection closed.';
 }
+let roomCode='';
+function lobbyInfo(){
+  const n=NET.conns.length;
+  mpInfo.textContent='Room code: '+roomCode+' — '+(n?n+' player'+(n>1?'s':'')+' joined. Up to 3 can join.':'send it to your friends and wait here.');
+  document.getElementById('mpStart').style.display=n?'block':'none';
+}
 function hostGame(){
   mpPane.style.display='block'; mpRow.style.display='none';
+  document.getElementById('diffRow').style.display='none';
   if(typeof Peer==='undefined'){ mpInfo.textContent='Multiplayer needs internet (connection library failed to load).'; return; }
   if(NET.peer)return;
-  const code=''+Math.floor(1000+Math.random()*9000);
+  roomCode=''+Math.floor(1000+Math.random()*9000);
   mpInfo.textContent='Setting up room…';
-  NET.peer=new Peer('nova-command-'+code,ICE);
-  NET.peer.on('open',()=>{ mpInfo.textContent='Room code: '+code+' — send it to your friend and wait here.'; });
+  NET.peer=new Peer('nova-command-'+roomCode,ICE);
+  NET.peer.on('open',()=>lobbyInfo());
   NET.peer.on('error',e=>{ mpInfo.textContent='Connection error ('+e.type+') — reload and try again.'; });
   NET.peer.on('connection',c=>{
-    NET.conn=c;
-    c.on('open',()=>{ NET.on=true; ME=0; startMP(); netSend({t:'start'}); sendSnap(); });
-    c.on('data',d=>{ if(d&&d.t)applyCmd(d); });
-    c.on('close',netLost);
+    if(started||NET.conns.length>=3){ try{c.close();}catch(e){} return; }
+    c.on('open',()=>{
+      NET.conns.push(c);
+      c.__owner=NET.conns.length;
+      lobbyInfo();
+    });
+    c.on('data',d=>{ if(d&&d.t)applyCmd(d,c.__owner); });
+    c.on('close',()=>{
+      const idx=NET.conns.indexOf(c);
+      if(idx<0)return;
+      NET.conns.splice(idx,1);
+      if(!started){
+        NET.conns.forEach((x,i)=>x.__owner=i+1);
+        lobbyInfo();
+      } else {
+        msg('Player '+(c.__owner+1)+' disconnected.');
+        if(!NET.conns.length&&!gameOver)showOver(false,'DISCONNECTED');
+      }
+    });
   });
+}
+function hostStartMatch(){
+  if(started||!NET.conns.length)return;
+  NET.on=true; ME=0;
+  PLAYERS=1+NET.conns.length;
+  resetGame();
+  startMP();
+  for(const c of NET.conns){ try{c.send({t:'start',owner:c.__owner,players:PLAYERS});}catch(e){} }
+  sendSnap();
 }
 function joinGame(){
   mpPane.style.display='block'; mpRow.style.display='block';
+  document.getElementById('diffRow').style.display='none';
+  document.getElementById('mpStart').style.display='none';
   if(typeof Peer==='undefined'){ mpInfo.textContent='Multiplayer needs internet (connection library failed to load).'; mpRow.style.display='none'; return; }
   mpInfo.textContent='Enter the room code from your friend:';
 }
@@ -1696,17 +1913,17 @@ function joinGo(){
 }
 function onGuestData(d){
   if(!d||!d.t)return;
-  if(d.t==='start')startMP();
-  else if(d.t==='snap'){ if(!started)startMP(); applySnap(d); }
-  else if(d.t==='over'){ time=d.tm||time; showOver(d.w===ME); }
-  else if(d.t==='rm'){ rmR=true; msg('Opponent wants a rematch.'); }
-  else if(d.t==='rematch'){ rmL=rmR=false; resetGame(); msg('Rematch! Destroy the enemy Command Center.'); }
+  if(d.t==='start'){ if(d.owner)ME=d.owner; if(d.players)PLAYERS=d.players; resetGame(); startMP(); }
+  else if(d.t==='snap'){ if(!started){ resetGame(); startMP(); } applySnap(d); }
+  else if(d.t==='over'){ time=d.tm||time; if(d.stats)stats=d.stats; if(d.series)armySeries=d.series; showOver(d.w===ME); }
+  else if(d.t==='rm')msg('A player wants a rematch.');
+  else if(d.t==='rematch'){ rmL=false; resetGame(); msg('Rematch! Last Command Center standing wins.'); }
 }
-function sendSnap(){
-  if(!NET.conn)return;
-  const s={t:'snap',tm:Math.round(time*100)/100,rm:Math.floor(res[1].m),
-    al:[atkLvl[0],atkLvl[1]],ar:[armLvl[0],armLvl[1]],
-    su:supplyUsed(1),sc:supplyCap(1),
+function buildSnap(){
+  const s={t:'snap',tm:Math.round(time*100)/100,
+    rs:res.slice(0,PLAYERS).map(r=>Math.floor(r.m)),
+    al:atkLvl.slice(0,PLAYERS),ar:armLvl.slice(0,PLAYERS),
+    sup:Array.from({length:PLAYERS},(_,o)=>[supplyUsed(o),supplyCap(o)]),
     u:units.map(u=>[u.id,u.owner,UTKEYS.indexOf(u.type),Math.round(u.x),Math.round(u.y),Math.ceil(u.hp),Math.round(u.face*100),u.carry,u.moving?1:0,u.order?1:0]),
     b:buildings.map(b=>{
       const q=b.queue[0];
@@ -1718,12 +1935,25 @@ function sendSnap(){
     n:nodes.map(n=>[n.id,Math.round(n.x),Math.round(n.y),n.amount]),
     e:evq};
   evq=[];
-  netSend(s);
+  return s;
+}
+function rec(s){
+  if(s.tm-REC.last>=0.5||!REC.snaps.length){
+    REC.last=s.tm;
+    if(REC.snaps.length<3600)REC.snaps.push(s);
+  }
+}
+function sendSnap(){
+  if(!NET.conns.length)return;
+  const s=buildSnap();
+  broadcast(s);
+  rec(s);
 }
 function applySnap(s){
-  time=s.tm; res[1].m=s.rm;
-  if(s.al){ atkLvl[0]=s.al[0]; atkLvl[1]=s.al[1]; armLvl[0]=s.ar[0]; armLvl[1]=s.ar[1]; }
-  if(s.su!==undefined){ gSu=s.su; gSc=s.sc; }
+  time=s.tm;
+  if(s.rs)for(let o=0;o<s.rs.length;o++)res[o].m=s.rs[o];
+  if(s.al)for(let o=0;o<s.al.length;o++){ atkLvl[o]=s.al[o]; armLvl[o]=s.ar[o]; }
+  if(s.sup&&s.sup[ME]){ gSu=s.sup[ME][0]; gSc=s.sup[ME][1]; }
   const seen=new Set();
   for(const a of s.u){
     seen.add(a[0]);
@@ -1779,41 +2009,51 @@ function playEvent(ev){
     if(fogVisible(ev[3],ev[4])||fogVisible(ev[1],ev[2]))pew();
   }
   else if(ev[0]==='b')boomFx(ev[1],ev[2],!!ev[3],ev[4]);
-  else if(ev[0]==='atk'){ if(time-lastAttackMsg>8){ lastAttackMsg=time; msg("We're under attack!"); beep(200,0.2,'sawtooth',0.05); } }
-  else if(ev[0]==='bc'){ msg(BT[ev[1]].name+' complete.'); beep(660,0.14,'triangle',0.05); }
-  else if(ev[0]==='bdes')msg('Your '+BT[ev[1]].name+' was destroyed!');
-  else if(ev[0]==='up'){ msg((ev[1]==='atk'?'Attack':'Armor')+' upgrade complete (level '+ev[2]+').'); beep(700,0.15,'triangle',0.05); }
+  else if(ev[0]==='atk'){
+    if(ev[1]===ME){
+      addPing(ev[2],ev[3]);
+      if(time-lastAttackMsg>8){ lastAttackMsg=time; msg("We're under attack!"); beep(200,0.2,'sawtooth',0.05); }
+    }
+  }
+  else if(ev[0]==='bc'){ if(ev[1]===ME){ msg(BT[ev[2]].name+' complete.'); beep(660,0.14,'triangle',0.05); } }
+  else if(ev[0]==='bdes'){ if(ev[1]===ME)msg('Your '+BT[ev[2]].name+' was destroyed!'); }
+  else if(ev[0]==='up'){ if(ev[1]===ME){ msg((ev[2]==='atk'?'Attack':'Armor')+' upgrade complete (level '+ev[3]+').'); beep(700,0.15,'triangle',0.05); } }
+  else if(ev[0]==='elim'){
+    if(ev[1]===ME){ SPECT=true; msg('You have been eliminated — spectating.'); }
+    else msg('Player '+(ev[1]+1)+' has been eliminated!');
+  }
 }
-function applyCmd(c){
-  const list=(c.ids||[]).map(entById).filter(e=>e&&!e.dead&&e.owner===1&&e.kind==='unit');
+function applyCmd(c,owner){
+  owner=owner||1;
+  const list=(c.ids||[]).map(entById).filter(e=>e&&!e.dead&&e.owner===owner&&e.kind==='unit');
   switch(c.t){
     case 'orders': issueMove(list,c.x,c.y,c.kind==='attackmove'); break;
-    case 'attack':{ const t=entById(c.target); if(t&&!t.dead&&t.owner===0)for(const u of list)u.order={kind:'attack',target:t}; break; }
+    case 'attack':{ const t=entById(c.target); if(t&&!t.dead&&t.owner!==owner)for(const u of list)u.order={kind:'attack',target:t}; break; }
     case 'harvest':{ const n=nodes.find(n=>n.id===c.node&&!n.dead); if(n)for(const u of list)if(u.type==='worker')u.order={kind:'harvest',node:n}; break; }
-    case 'build':{ const b=entById(c.b); if(b&&b.kind==='building'&&b.owner===1&&!b.done)for(const u of list)if(u.type==='worker')u.order={kind:'build',b}; break; }
+    case 'build':{ const b=entById(c.b); if(b&&b.kind==='building'&&b.owner===owner&&!b.done)for(const u of list)if(u.type==='worker')u.order={kind:'build',b}; break; }
     case 'place':{
       const t=BT[c.type];
-      if(t&&res[1].m>=t.cost&&placementValid(c.type,c.x,c.y)){
-        res[1].m-=t.cost;
-        const b=makeBuilding(1,c.type,c.x,c.y,false);
+      if(t&&res[owner].m>=t.cost&&placementValid(c.type,c.x,c.y)){
+        res[owner].m-=t.cost;
+        const b=makeBuilding(owner,c.type,c.x,c.y,false);
         buildings.push(b);
         const w=entById(c.builder);
-        if(w&&!w.dead&&w.owner===1&&w.type==='worker')w.order={kind:'build',b};
+        if(w&&!w.dead&&w.owner===owner&&w.type==='worker')w.order={kind:'build',b};
       }
       break; }
-    case 'train':{ const b=entById(c.bid); if(b&&!b.dead&&b.owner===1&&b.done&&BT[b.type].trains===c.type)train(b,c.type); break; }
-    case 'up':{ const b=entById(c.bid); if(b&&!b.dead&&b.owner===1&&b.done&&b.type==='command'&&(c.kind==='atk'||c.kind==='arm'))startUpgrade(b,c.kind); break; }
-    case 'rally':{ for(const id of (c.bids||[])){ const b=entById(id); if(b&&b.kind==='building'&&b.owner===1)b.rally={x:c.x,y:c.y}; } break; }
-    case 'rm':{ rmR=true; hostTryRematch(); break; }
+    case 'train':{ const b=entById(c.bid); if(b&&!b.dead&&b.owner===owner&&b.done&&BT[b.type].trains===c.type)train(b,c.type); break; }
+    case 'up':{ const b=entById(c.bid); if(b&&!b.dead&&b.owner===owner&&b.done&&b.type==='command'&&(c.kind==='atk'||c.kind==='arm'))startUpgrade(b,c.kind); break; }
+    case 'rally':{ for(const id of (c.bids||[])){ const b=entById(id); if(b&&b.kind==='building'&&b.owner===owner)b.rally={x:c.x,y:c.y}; } break; }
+    case 'rm':{ rmSet.add(owner); msg('Player '+(owner+1)+' wants a rematch.'); hostTryRematch(); break; }
   }
 }
 function hostTryRematch(){
-  if(NET.guest||!rmL||!rmR)return;
-  rmL=rmR=false;
+  if(NET.guest||!rmL||rmSet.size<NET.conns.length)return;
+  rmL=false; rmSet.clear();
   resetGame();
-  netSend({t:'rematch'});
+  broadcast({t:'rematch'});
   sendSnap();
-  msg('Rematch! Destroy the enemy Command Center.');
+  msg('Rematch! Last Command Center standing wins.');
 }
 function guestUpdate(dt){
   time+=dt;
@@ -1826,7 +2066,7 @@ function guestUpdate(dt){
   camY=clamp(camY,0,Math.max(0,WORLD.h-viewH()));
   for(const u of units){
     if(u.lt!==undefined&&u.lt<1){
-      u.lt=Math.min(1,u.lt+dt/SNAP_DT);
+      u.lt=Math.min(1,u.lt+dt/(REPLAYING?0.5:SNAP_DT));
       u.x=u.px+(u.tx-u.px)*u.lt;
       u.y=u.py+(u.ty-u.py)*u.lt;
     }
@@ -1854,6 +2094,7 @@ for(const [id,key] of [['dEasy','easy'],['dNormal','normal'],['dHard','hard']])
 document.getElementById('mHost').onclick=hostGame;
 document.getElementById('mJoin').onclick=joinGame;
 document.getElementById('mpGo').onclick=joinGo;
+document.getElementById('mpStart').onclick=hostStartMatch;
 document.getElementById('rematch').onclick=()=>{
   if(!NET.on){ resetGame(); return; }
   if(rmL)return;
@@ -1862,6 +2103,57 @@ document.getElementById('rematch').onclick=()=>{
   document.getElementById('rematch').textContent='WAITING…';
   hostTryRematch();
 };
+document.getElementById('saveReplay').onclick=()=>{
+  try{
+    const blob=new Blob([JSON.stringify({v:1,players:PLAYERS,snaps:REC.snaps})],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='nova-replay-'+Math.floor(time)+'s.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },5000);
+  }catch(e){ msg('Could not save the replay.'); }
+};
+document.getElementById('mReplay').onclick=()=>document.getElementById('replayFile').click();
+document.getElementById('replayFile').onchange=e=>{
+  const f=e.target.files&&e.target.files[0];
+  if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      if(!d||!d.snaps||!d.snaps.length)throw 0;
+      startReplay(d);
+    }catch(_){
+      mpPane.style.display='block'; mpRow.style.display='none';
+      mpInfo.textContent='Could not read that replay file.';
+    }
+  };
+  r.readAsText(f);
+};
+function startReplay(d){
+  PLAYERS=d.players||2;
+  REPLAYING=true; SPECT=true; ME=-1;
+  units.length=0; buildings.length=0; nodes.length=0; fx.length=0; sel=[];
+  RPL={snaps:d.snaps,i:1,clock:d.snaps[0].tm||0,done:false};
+  started=true; gameOver=false;
+  menuEl.style.display='none';
+  applySnap(RPL.snaps[0]);
+  camX=clamp(WORLD.w/2-VW/2,0,Math.max(0,WORLD.w-VW));
+  camY=clamp(WORLD.h/2-viewH()/2,0,Math.max(0,WORLD.h-viewH()));
+  msg('Replay — watching all players. Drag or use arrows to scroll.');
+}
+function replayUpdate(dt){
+  RPL.clock+=dt;
+  while(RPL.i<RPL.snaps.length&&RPL.snaps[RPL.i].tm<=RPL.clock){
+    applySnap(RPL.snaps[RPL.i]);
+    RPL.i++;
+  }
+  if(RPL.i>=RPL.snaps.length&&!RPL.done){
+    RPL.done=true;
+    showOver(false,'REPLAY ENDED');
+  }
+}
 if(typeof location!=='undefined'&&/solo/.test(location.search))startSolo();
 if(typeof navigator!=='undefined'&&navigator.serviceWorker&&typeof location!=='undefined'&&location.protocol.indexOf('http')===0){
   try{ navigator.serviceWorker.register('sw.js'); }catch(e){}
@@ -1872,7 +2164,11 @@ let last=performance.now();
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000);
   last=now;
-  if(!gameOver&&started){ if(NET.guest)guestUpdate(dt); else update(dt); }
+  if(!gameOver&&started){
+    if(REPLAYING){ replayUpdate(dt); guestUpdate(dt); }
+    else if(NET.guest)guestUpdate(dt);
+    else update(dt);
+  }
   draw();
   requestAnimationFrame(frame);
 }
