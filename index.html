@@ -32,8 +32,8 @@
   #over{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(3,5,10,.78);z-index:10;color:#fff}
   #overTitle{font-size:54px;letter-spacing:10px;margin-bottom:10px}
   #overSub{color:#8fa8cf;margin-bottom:26px;font-size:14px}
-  #again,#rematch,#saveReplay{background:#122341;border:1px solid #2b4a7f;color:#cfe3ff;padding:12px 28px;font:14px "Menlo","Consolas",monospace;cursor:pointer;border-radius:4px;touch-action:manipulation}
-  #again:hover,#rematch:hover,#saveReplay:hover{background:#1a3560}
+  #again,#rematch,#saveReplay,#watchNow{background:#122341;border:1px solid #2b4a7f;color:#cfe3ff;padding:12px 28px;font:14px "Menlo","Consolas",monospace;cursor:pointer;border-radius:4px;touch-action:manipulation}
+  #again:hover,#rematch:hover,#saveReplay:hover,#watchNow:hover{background:#1a3560}
   #statsBox{margin-bottom:20px;text-align:center}
   #statsTable{margin:0 auto 10px;border-collapse:collapse;font-size:11px;color:#9fb6d9}
   #statsTable td,#statsTable th{padding:3px 10px;border-bottom:1px solid #16233a;text-align:right}
@@ -148,7 +148,7 @@
   <table id="statsTable"></table>
   <canvas id="statsGraph" width="320" height="90"></canvas>
 </div>
-<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button id="rematch" style="display:none">REMATCH</button><button id="saveReplay" style="display:none">SAVE REPLAY</button><button id="again" onclick="location.reload()">PLAY AGAIN</button></div></div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button id="rematch" style="display:none">REMATCH</button><button id="watchNow" style="display:none">WATCH</button><button id="saveReplay" style="display:none">SAVE REPLAY</button><button id="again" onclick="location.reload()">PLAY AGAIN</button></div></div>
 <div id="menu">
   <div id="menuTitle">NOVA COMMAND</div>
   <div id="menuSub">a tiny space RTS — mine, build, conquer</div>
@@ -1364,7 +1364,9 @@ function showOver(win,title){
   const rb=document.getElementById('rematch');
   rb.textContent='REMATCH';
   rb.style.display=title?'none':'block';
-  document.getElementById('saveReplay').style.display=(!NET.guest&&!REPLAYING&&REC.snaps.length>1)?'block':'none';
+  const canReplay=!NET.guest&&!REPLAYING&&REC.snaps.length>1;
+  document.getElementById('saveReplay').style.display=canReplay?'block':'none';
+  document.getElementById('watchNow').style.display=canReplay?'block':'none';
   renderStats();
   document.getElementById('over').style.display='flex';
 }
@@ -2150,6 +2152,11 @@ document.getElementById('saveReplay').onclick=()=>{
     a.click();
     setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },5000);
   }catch(e){ msg('Could not save the replay.'); }
+};
+document.getElementById('watchNow').onclick=()=>{
+  if(REC.snaps.length<2)return;
+  document.getElementById('over').style.display='none';
+  startReplay({players:PLAYERS,snaps:REC.snaps.slice()});
 };
 document.getElementById('mReplay').onclick=()=>document.getElementById('replayFile').click();
 document.getElementById('replayFile').onchange=e=>{
