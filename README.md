@@ -89,3 +89,15 @@ It's a PWA — "Add to Home Screen" on iPad/Android or "Install" in desktop Chro
 ## Development
 
 It's one file. Edit `index.html`, refresh the browser. That's the whole workflow.
+
+### Tests
+
+`test/run-all.sh` runs five headless simulation suites in Node (no browser needed) — the game script is loaded into a sandboxed VM with a stubbed DOM/canvas and driven frame by frame with scripted players:
+
+- `smoke.js` — an idle player loses to the normal AI on schedule
+- `smoke2.js` — a scripted macro player (depots, factory, siege, upgrades) beats the normal AI
+- `mp-test.js` — full 2-player match over JSON-wired fake connections: state stays in sync, guest commands work, opposite outcomes delivered
+- `mp3-test.js` — 3-player FFA: 3-way sync, mid-game elimination puts the loser into spectator mode while play continues
+- `replay-test.js` — record a game, play it back in a fresh instance, verify clean completion
+
+Tests seed `Math.random`, so runs are reproducible despite randomized maps.
